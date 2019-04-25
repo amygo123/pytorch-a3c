@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from neural_gpu import *
 import torch.nn.functional as F
 
 
@@ -32,10 +31,31 @@ def weights_init(m):
 class ActorCritic(torch.nn.Module):
     def __init__(self, num_inputs, action_space):
         super(ActorCritic, self).__init__()
-        self.ngpu = NeuralGPU(20, 5, 4)  # .cuda()
+        self.Linear1 = nn.Linear(100, 72)
+        self.Linear2 = nn.Linear(72, 36)
+        self.Linear1.weight.data = normalized_columns_initializer(
+            self.Linear1.weight.data, 0.01)
+        self.Linear1.bias.data.fill_(0)
+        self.Linear2.weight.data = normalized_columns_initializer(
+            self.Linear2.weight.data, 0.01)
+        self.Linear2.bias.data.fill_(0)
+
+        num_outputs = action_space
+        self.critic_linear = nn.Linear(36, 1)
+        self.actor_linear = nn.Linear(36, num_outputs)
+
         self.apply(weights_init)
+        self.actor_linear.weight.data = normalized_columns_initializer(
+            self.actor_linear.weight.data, 0.01)
+        self.actor_linear.bias.data.fill_(0)
+        self.critic_linear.weight.data = normalized_columns_initializer(
+            self.critic_linear.weight.data, 1.0)
+        self.critic_linear.bias.data.fill_(0)
+
+        self.train()
 
     def forward(self, inputs):
 
-        x = self.ngpu(inputs)
+        x = self.Linear1(inputs)
+        x = self.Linear2(x)
         return self.critic_linear(x), self.actor_linear(x)

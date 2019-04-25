@@ -11,6 +11,7 @@ from envs import create_atari_env
 from model import ActorCritic
 from test import test
 from train import train
+from EnvAPI import Env
 
 # Based on
 # https://github.com/pytorch/examples/tree/master/mnist_hogwild
@@ -49,9 +50,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
-    env = create_atari_env(args.env_name)
-    shared_model = ActorCritic(
-        env.observation_space.shape[0], env.action_space)
+    shared_model = ActorCritic(1, 30)
     shared_model.share_memory()
 
     if args.no_shared:
@@ -75,3 +74,5 @@ if __name__ == '__main__':
         processes.append(p)
     for p in processes:
         p.join()
+
+

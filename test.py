@@ -3,18 +3,17 @@ from collections import deque
 
 import torch
 import torch.nn.functional as F
-
+from EnvAPI import Env
 from envs import create_atari_env
 from model import ActorCritic
 
 
 def test(rank, args, shared_model, counter):
     torch.manual_seed(args.seed + rank)
+    torch.save(shared_model.state_dict(), 't.pkl')
 
-    env = create_atari_env(args.env_name)
-    env.seed(args.seed + rank)
-
-    model = ActorCritic(env.observation_space.shape[0], env.action_space)
+    env = Env(args.seed + rank)
+    model = ActorCritic(1, env.action_space)
 
     model.eval()
 
@@ -22,29 +21,28 @@ def test(rank, args, shared_model, counter):
     state = torch.from_numpy(state)
     reward_sum = 0
     done = True
+    # env.visual()
 
     start_time = time.time()
 
     # a quick hack to prevent the agent from stucking
-    actions = deque(maxlen=100)
+    actions = deque(maxlen=500)
     episode_length = 0
     while True:
+
         episode_length += 1
         # Sync with the shared model
         if done:
             model.load_state_dict(shared_model.state_dict())
-            cx = torch.zeros(1, 256)
-            hx = torch.zeros(1, 256)
-        else:
-            cx = cx.detach()
-            hx = hx.detach()
+
 
         with torch.no_grad():
-            value, logit, (hx, cx) = model((state.unsqueeze(0), (hx, cx)))
+            value, logit = model((state.unsqueeze(0)).type(torch.FloatTensor))
         prob = F.softmax(logit, dim=-1)
         action = prob.max(1, keepdim=True)[1].numpy()
+        print(action)
 
-        state, reward, done, _ = env.step(action[0, 0])
+        state, reward, done = env.step(action[0, 0])
         done = done or episode_length >= args.max_episode_length
         reward_sum += reward
 
@@ -59,10 +57,12 @@ def test(rank, args, shared_model, counter):
                               time.gmtime(time.time() - start_time)),
                 counter.value, counter.value / (time.time() - start_time),
                 reward_sum, episode_length))
+            # env.visual()
             reward_sum = 0
             episode_length = 0
             actions.clear()
             state = env.reset()
+
             time.sleep(60)
 
         state = torch.from_numpy(state)
